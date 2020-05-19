@@ -1,2 +1,2 @@
 # SortsVisualizer
-Sorting visualization project on Blazer
+Sorting visualization project on Blazor
