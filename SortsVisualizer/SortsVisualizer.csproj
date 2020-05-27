@@ -4,4 +4,12 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Magick.NET-Q16-AnyCPU" Version="7.17.0.1" />
+    <PackageReference Include="MatBlazor" Version="2.6.0" />
+    <PackageReference Include="PhotoSauce.MagicScaler" Version="0.10.3" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="1.0.0-rc0001" />
+    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="1.0.0-beta0008" />
+  </ItemGroup>
+
 </Project>

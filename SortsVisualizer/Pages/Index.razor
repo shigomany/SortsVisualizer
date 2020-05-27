@@ -1,5 +1,86 @@
 ﻿@page "/"
+@inject IMatToaster Toaster
+<!--<div class="container-fluid position-absolute">-->
+<MatThemeProvider Theme="@theme">
+    <div class="container position-absolute pt-3 pb-3" style="z-index:1;">
 
-<h1>Hello, world!</h1>
+        <MatToastContainer />
+        <div class="container bg-white mat-elevation-z12 mt-5 rounded-lg d-flex justify-content-center flex-column">
+            <MatTooltip Tooltip="Моднейший проектик от нас" TargetId="header-text" Position="@MatTooltipPosition.Bottom">
+                <div id="header-text" class="p-3 display-4 text-center" style="font-family: 'Century Gothic'">
+                    Sort Visualizer
+                </div>
+            </MatTooltip>
 
-Welcome to your new app.
+            <div class="text-center mat-h4 mat-button">Загрузка исходного изображения</div>
+            <div class="form-group p-2">
+                <MatFileUpload Label="Выберите картинку" OnChange="@HandleFileSelected"></MatFileUpload>
+            </div>
+
+            <div class="pt-3 pb-3 text-center mat-overline">Исходное изображение</div>
+            <div class="d-flex justify-content-center pb-3">
+                @if (ImgSource.Count > 0)
+                {
+                    <img class="img-thumbnail" src="data:image/png;base64,@GetBase64(ImgSource.ToArray())" />
+                }
+            </div>
+
+        </div>
+    </div>
+</MatThemeProvider>
+
+@code {
+
+    string ImgDefaultPath = "wwwroot/img/placeholder.png";
+
+    List<byte> ImgSource = new List<byte>();
+
+    public int Side = 250;
+
+    public int TileSize;
+
+    MatTheme theme = new MatTheme()
+    {
+        Primary = MatThemeColors.Grey._600.Value,
+        Secondary = MatThemeColors.Grey._600.Value,
+        Surface = MatThemeColors.Grey._600.Value
+    };
+
+    protected override void OnInitialized()
+    {
+        using var image = Image<Rgb48>.Load(ImgDefaultPath);
+
+        image.Mutate(x => x.Resize(Side, Side));
+
+        using var mem = new MemoryStream();
+        image.SaveAsPng(mem);
+        ImgSource = mem.ToArray().ToList();
+    }
+
+    public static string GetBase64(byte[] data) => Convert.ToBase64String(data);
+
+    public async Task HandleFileSelected(IMatFileUploadEntry[] files)
+    {
+        var picture = files.FirstOrDefault();
+
+        if (picture != null && (picture.Type == "image/png" || picture.Type == "image/jpeg"))
+        {
+            using var mem = new MemoryStream();
+            await picture.WriteToStreamAsync(mem);
+            using var image = Image<Rgb48>.Load(mem.ToArray());
+
+            image.Mutate(x => x.Resize(Side, Side));
+
+            using var newMem = new MemoryStream();
+            image.SaveAsPng(newMem);
+            ImgSource = newMem.ToArray().ToList();
+
+            Toaster.Add("Файл успешно загружен", MatToastType.Success, title: "Успешно!");
+
+        }
+        else
+        {
+            Toaster.Add("Файл должен быть формата PNG или JPEG", MatToastType.Warning, title: "Ошибка!");
+        }
+    }
+}

@@ -10,6 +10,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using SortsVisualizer.Data;
+using MatBlazor;
 
 namespace SortsVisualizer
 {
@@ -29,6 +30,16 @@ namespace SortsVisualizer
             services.AddRazorPages();
             services.AddServerSideBlazor();
             services.AddSingleton<WeatherForecastService>();
+            services.AddMatToaster(config =>
+            {
+                config.Position = MatToastPosition.TopCenter;
+                config.PreventDuplicates = true;
+                config.ShowProgressBar = true;
+                config.NewestOnTop = true;
+                config.ShowCloseButton = true;
+                config.MaximumOpacity = 100;
+                config.VisibleStateDuration = 5000; //5sec
+            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
