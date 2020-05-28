@@ -24,12 +24,84 @@
                     <img class="img-thumbnail" src="data:image/png;base64,@GetBase64(ImgSource.ToArray())" />
                 }
             </div>
+            <MatDivider></MatDivider>
+            <div class="text-center mat-h4 pt-3 mat-button">Настройки</div>
 
+            <div class="mat-layout-grid w-100">
+                <div class="mat-layout-grid-inner">
+                    <div class="mat-layout-grid-cell mat-layout-grid-cell-span-6">
+                        <div class="mat-overline">
+                            Сектора картинки
+                        </div>
+                        <div class="d-flex">
+                            <MatSelect Disabled="OnPixels" Class="mat-overline" Label="Выберите кол-во секторов" @bind-Value="@SectorDivider">
+                                @if (Dividers.Count > 0)
+                                {
+                                    @foreach (var el in Dividers)
+                                    {
+                                        <MatOption TValue="int" Value="el" Class="mat-overline">@el</MatOption>
+                                    }
+                                }
+                            </MatSelect>
+                            @*<MatCheckbox @bind-Value="OnPixels">
+                            <div style="margin-bottom: -10px;">По пикселям</div>
+                        </MatCheckbox>*@
+                        </div>
+                    </div>
+                    <div class="mat-layout-grid-cell mat-layout-grid-cell-span-6">
+                        <div class="mat-overline">
+                            Изменение картинки
+                        </div>
+                        <MatButton Outlined="true" OnClick="ShuffleHandler">Перемешать</MatButton>
+                        <MatButton Outlined="true" OnClick="SourceHandler">Исходное</MatButton>
+                    </div>
+                    <div class="mat-layout-grid-cell mat-layout-grid-cell-span-12">
+                        @if (UpdatingImage)
+                        {
+                            <div class="mat-overline text-center">
+                                Идет обработка изображения...
+                            </div>
+                            <MatProgressBar Indeterminate="true"></MatProgressBar>
+                        }
+                        else
+                        {
+                            <div class="d-flex justify-content-center flex-wrap">
+                                <img class="img-thumbnail"
+                                     src="data:image/png;base64,@GetPreviewImageBase64(ImgSplitted.ToArray())" />
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </MatThemeProvider>
 
 @code {
+    List<byte> ImgSplitted = new List<byte>();
+    List<SortElement> SourceSectorsList = new List<SortElement>();
+    int _sectorDivider = 2;
+
+    public bool OnPixels { get; set; }
+    public bool UpdatingImage { get; set; }
+    public int SectorDivider
+    {
+        get => _sectorDivider;
+        set
+        {
+            UpdatingImage = true;
+            StateHasChanged();
+
+            _sectorDivider = value;
+            TileSize = Side / value;
+            ImgSplitted = new List<byte>(ImgSource);
+            SetTilesFromImage(ImgSource.ToArray());
+
+            UpdatingImage = false;
+        }
+    }
+
+    List<int> Dividers = new List<int>();
 
     string ImgDefaultPath = "wwwroot/img/placeholder.png";
 
@@ -55,6 +127,92 @@
         using var mem = new MemoryStream();
         image.SaveAsPng(mem);
         ImgSource = mem.ToArray().ToList();
+        ImgSplitted = new List<byte>(ImgSource);
+        Dividers = GetDividers(Side);
+        SectorDivider = 2;
+    }
+
+    public void ShuffleHandler(MouseEventArgs e)
+    {
+        UpdatingImage = true;
+        StateHasChanged();
+
+        SourceSectorsList.Shuffle();
+
+        ImgSplitted = GetImageFromTiles(SourceSectorsList.Select(x => x.Data).ToList());
+        UpdatingImage = false;
+    }
+
+    public void SourceHandler(MouseEventArgs e)
+    {
+        ImgSplitted = new List<byte>(ImgSource);
+    }
+
+    public string GetPreviewImageBase64(byte[] data)
+    {
+        using var image = new MagickImage(data);
+        var lines = new Drawables()
+                        .StrokeColor(MagickColors.White);
+        for (int i = 0; i <= SectorDivider; i++)
+        {
+            lines = lines.Line(i * TileSize, 0, i * TileSize, Side);
+            lines = lines.Line(0, i * TileSize, Side, i * TileSize);
+        }
+
+        image.Draw(lines);
+
+        return image.ToBase64();
+    }
+
+    private List<byte> GetImageFromTiles(List<List<byte>> data)
+    {
+        using var image = new Image<Rgba32>(Side, Side);
+
+        for (int i = 0; i < SectorDivider; i++)
+        {
+            for (int j = 0; j < SectorDivider; j++)
+            {
+                var curentTile = Image.Load(data[i * SectorDivider + j].ToArray());
+                image.Mutate(x => x.DrawImage(curentTile, new Point(i * TileSize, j * TileSize), 1));
+            }
+        }
+
+        using var mem = new MemoryStream();
+        image.SaveAsPng(mem);
+
+
+        return mem.ToArray().ToList();
+    }
+
+    private void SetTilesFromImage(byte[] dataImage)
+    {
+        SourceSectorsList = new List<SortElement>();
+        using var image = Image.Load(dataImage);
+        var iter = 0;
+        for (int i = 0; i < SectorDivider; i++)
+        {
+            for (int j = 0; j < SectorDivider; j++)
+            {
+                var clone = image.Clone();
+                clone.Mutate(x => x.Crop(new Rectangle(i * TileSize, j * TileSize, TileSize, TileSize)));
+                using var mem = new MemoryStream();
+                clone.SaveAsPng(mem);
+                SourceSectorsList.Add(new SortElement
+                {
+                    Value = iter++,
+                    Data = mem.ToArray().ToList()
+                });
+            }
+        }
+    }
+
+    public List<int> GetDividers(int value)
+    {
+        var tempList = new List<int>();
+        for (int i = 2; i < value; i++)
+            if (value % i == 0) tempList.Add(i);
+
+        return tempList;
     }
 
     public static string GetBase64(byte[] data) => Convert.ToBase64String(data);
@@ -74,9 +232,10 @@
             using var newMem = new MemoryStream();
             image.SaveAsPng(newMem);
             ImgSource = newMem.ToArray().ToList();
+            ImgSplitted = new List<byte>(ImgSource);
+            SetTilesFromImage(ImgSplitted.ToArray());
 
             Toaster.Add("Файл успешно загружен", MatToastType.Success, title: "Успешно!");
-
         }
         else
         {
