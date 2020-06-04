@@ -43,9 +43,6 @@
                                     }
                                 }
                             </MatSelect>
-                            @*<MatCheckbox @bind-Value="OnPixels">
-                            <div style="margin-bottom: -10px;">По пикселям</div>
-                        </MatCheckbox>*@
                         </div>
                     </div>
                     <div class="mat-layout-grid-cell mat-layout-grid-cell-span-6">
@@ -73,11 +70,78 @@
                     </div>
                 </div>
             </div>
+            <MatDivider></MatDivider>
+            <div class="text-center mat-h4 pt-3 mat-button">Сортировки</div>
+            <div class="mat-layout-grid w-100">
+                <div class="mat-layout-grid-inner">
+                    <!-- Row -->
+                    @foreach (var sortEl in SortAlgData)
+                    {
+                        <div class="mat-layout-grid-cell mat-layout-grid-cell-span-6 mat-elevation-z5">
+                            <div class="pt-3 pb-3 text-center mat-overline">@sortEl.Value.Name</div>
+
+
+                            @if (sortEl.Value.SectorsList != null && sortEl.Value.SectorsList.Count > 0)
+                            {
+                                <div class="d-flex justify-content-center flex-wrap pb-2">
+                                    <img class="d-block img-thumbnail"
+                                         src="data:image/png;base64,@GetBase64(GetImageFromTiles(sortEl.Value.SectorsList.Select(x => x.Data).ToList()).ToArray())" />
+                                </div>
+                                @if (sortEl.Value.Sorter.Time != null)
+                                {
+                                    <div class="mat-button text-center p-3">Время: @((int)sortEl.Value.Sorter.Time.TotalMilliseconds) мс</div>
+                                }
+                                <div class="btn-group w-100 p-3" role="group">
+                                    <button type="button" class="btn btn-outline-success mat-button" @onclick="(() => StartSortHandler(sortEl.Key))">Запустить</button>
+                                    <button type="button" class="btn btn-outline-danger mat-button" @onclick="(() => StopSortHandler(sortEl.Key))">Остановить</button>
+                                    <button type="button" class="btn btn-outline-dark mat-button" @onclick="(() => UpdateImageHandler(sortEl.Key))">Обновить</button>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <div class="mat-layout-grid-cell mat-layout-grid-cell-span-12">
+                        <MatButton Icon="@MatIconNames.Refresh" Class="w-100 m-1" OnClick="RefreshAll">Обновить все</MatButton>
+                        <MatButton Raised="true" Icon="play_arrow" Class="w-100 bg-success m-1" OnClick="StartAll">Запустить все</MatButton>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </MatThemeProvider>
 
 @code {
+
+    public enum SortAlgs
+    {
+        Quick,
+        Radix,
+        Tim,
+        Heap
+    }
+
+    Dictionary<SortAlgs, SortData> SortAlgData = new Dictionary<SortAlgs, SortData>()
+    {
+        [SortAlgs.Quick] = new SortData
+        {
+            Name = "Быстрая (QuickSort)",
+            SectorsList = new List<SortElement>(),
+            Sorter = new QS()
+        },
+        [SortAlgs.Radix] = new SortData
+        {
+            Name = "Поразрядная (RadixSort)",
+            SectorsList = new List<SortElement>(),
+            Sorter = new RadixSort()
+        },
+        [SortAlgs.Heap] = new SortData
+        {
+            Name = "Пирамидальная (HeapSort)",
+            SectorsList = new List<SortElement>(),
+            Sorter = new HeapSort()
+        },
+    };
+
     List<byte> ImgSplitted = new List<byte>();
     List<SortElement> SourceSectorsList = new List<SortElement>();
     int _sectorDivider = 2;
@@ -139,8 +203,48 @@
 
         SourceSectorsList.Shuffle();
 
+        foreach(var algData in SortAlgData)
+            algData.Value.SectorsList = new List<SortElement>(SourceSectorsList);
+
         ImgSplitted = GetImageFromTiles(SourceSectorsList.Select(x => x.Data).ToList());
         UpdatingImage = false;
+    }
+
+    public async void StartSortHandler(SortAlgs sort)
+    {
+        await InvokeAsync(() =>
+        {
+            SortAlgData[sort].Sorter.Sort(SortAlgData[sort].SectorsList, StateHasChanged);
+        });
+    }
+
+    public void UpdateImageHandler(SortAlgs sort)
+    {
+        SortAlgData[sort].SectorsList = new List<SortElement>(SourceSectorsList);
+    }
+
+    public async void StopSortHandler(SortAlgs sort)
+    {
+        await InvokeAsync(() =>
+        {
+            SortAlgData[sort].Sorter.Stop();
+        });
+    }
+
+    public async void StartAll()
+    {
+        await InvokeAsync(() =>
+        {
+            SortAlgData.ToList().ForEach(x => x.Value.Sorter.Sort(x.Value.SectorsList, StateHasChanged));
+        });
+    }
+
+    public async void RefreshAll()
+    {
+        await InvokeAsync(() =>
+        {
+            SortAlgData.ToList().ForEach(x => x.Value.SectorsList = new List<SortElement>(SourceSectorsList));
+        });
     }
 
     public void SourceHandler(MouseEventArgs e)
@@ -204,6 +308,7 @@
                 });
             }
         }
+        SortAlgData.ToList().ForEach(x => x.Value.SectorsList = new List<SortElement>(SourceSectorsList));
     }
 
     public List<int> GetDividers(int value)
